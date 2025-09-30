@@ -1,6 +1,7 @@
 let map;
 let watchId = null;
-const pathCoordinates = [];
+let pathCoordinates = [];
+let pathPolyline = null;
 
 /**
  * Leaflet 지도를 초기화합니다.
@@ -56,16 +57,20 @@ export function setInitialView() {
  * Geolocation API를 사용하여 위치 추적을 시작합니다.
  */
 export function startTracking() {
+  if (watchId !== null) {
+    alert('이미 위치 추적이 진행 중입니다.');
+    return;
+  }
   if (!navigator.geolocation) {
     alert('이 브라우저에서는 위치 추적을 지원하지 않습니다.');
     return;
   }
 
-  watchId = navigator.geolocation.watchPosition(
+  watchId = navigator.geolocation.watchPosition( // eslint-disable-line no-undef
     (position) => {
       const { latitude, longitude } = position.coords;
       pathCoordinates.push([latitude, longitude]);
-      // TODO: 경로를 지도에 실시간으로 그리는 로직 추가 (L.polyline)
+      drawPath(pathCoordinates);
       console.log('Current position:', latitude, longitude);
     },
     (error) => {
@@ -73,6 +78,56 @@ export function startTracking() {
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
+}
+
+/**
+ * 위치 추적을 중지합니다.
+ */
+export function stopTracking() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    console.log('Position watching stopped.');
+  }
+}
+
+/**
+ * 지도에 경로를 그립니다. 기존 경로는 지우고 새로 그립니다.
+ * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
+ */
+export function drawPath(coordinates) {
+  // 기존 경로가 있으면 지도에서 제거
+  if (pathPolyline) {
+    map.removeLayer(pathPolyline);
+  }
+
+  // 새로운 좌표로 경로를 다시 그림
+  pathCoordinates = coordinates; // 내부 좌표 데이터 업데이트
+  if (pathCoordinates && pathCoordinates.length > 1) {
+    pathPolyline = L.polyline(pathCoordinates, { color: 'blue' }).addTo(map);
+    // 경로가 보이도록 지도 뷰 조정
+    // map.fitBounds(pathPolyline.getBounds());
+  }
+}
+
+/**
+ * 지도에 그려진 경로와 내부 좌표 데이터를 모두 초기화합니다.
+ */
+export function clearPath() {
+  if (pathPolyline) {
+    map.removeLayer(pathPolyline);
+    pathPolyline = null;
+  }
+  pathCoordinates = [];
+  console.log('Path cleared.');
+}
+
+/**
+ * 현재까지 기록된 경로 좌표를 반환합니다.
+ * @returns {Array<[number, number]>}
+ */
+export function getPathCoordinates() {
+  return pathCoordinates;
 }
 
 /**
@@ -84,4 +139,4 @@ export function invalidateMapSize() {
   }
 }
 
-// TODO: stopTracking, drawPath, addMarker 등 지도 관련 함수들을 추가로 구현합니다.
+// TODO: addMarker 등 지도 관련 함수들을 추가로 구현합니다.

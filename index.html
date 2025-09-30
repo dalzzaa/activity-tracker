@@ -27,6 +27,8 @@
         .title-container { display: flex; gap: 5px; }
         #detail-title-input { flex-grow: 1; font-size: 1.2em; border: 1px solid #ddd; padding: 5px; }
         #save-activity-btn { padding: 0 1rem; }
+        .activity-controls { padding: 0.5rem 1rem; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 10px; }
+        .activity-controls span { font-weight: bold; }
         .detail-map-container { flex-grow: 1; position: relative; }
         #map { width: 100%; height: 100%; }
         .map-controls { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 5px; border-radius: 5px; }
@@ -48,11 +50,14 @@
                 <button id="save-activity-btn">저장</button>
             </div>
         </div>
+        <div class="activity-controls">
+            <span>활동 기록 제어:</span>
+            <button id="start-tracking-btn" disabled>시작</button>
+            <button id="pause-tracking-btn" disabled>중지</button>
+            <button id="stop-tracking-btn" disabled>종료</button>
+        </div>
         <div class="detail-map-container">
             <div id="map"></div>
-            <div class="map-controls">
-                <button>시작</button> <button>중지</button> <button>종료</button>
-            </div>
         </div>
     </div>
 </div>
