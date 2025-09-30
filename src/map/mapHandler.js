@@ -1,8 +1,10 @@
 let map;
 let watchId = null;
-let pathCoordinates = [];
-let pathPolyline = null;
+let rawPathCoordinates = []; // GPS에서 수집한 원본 좌표
+let snappedPathPolyline = null; // 도로에 맞춰진 경로 Polyline
 
+const OSRM_SERVER_URL = 'https://router.project-osrm.org/match/v1/driving/';
+let isSnapping = false; // 스냅 API 호출 중복 방지 플래그
 /**
  * Leaflet 지도를 초기화합니다.
  * @param {HTMLElement} mapContainer - 지도를 표시할 DOM 요소
@@ -54,6 +56,56 @@ export function setInitialView() {
 }
 
 /**
+ * OSRM API를 사용하여 수집된 좌표를 실제 도로 경로에 맞춥니다.
+ */
+export async function snapToRoad() {
+  if (rawPathCoordinates.length < 2 || isSnapping) {
+    return;
+  }
+  isSnapping = true;
+
+  try {
+    // OSRM API 형식에 맞게 좌표를 '경도,위도' 문자열로 변환
+    const coordsString = rawPathCoordinates.map(p => `${p[1]},${p[0]}`).join(';');
+    const response = await fetch(`${OSRM_SERVER_URL}${coordsString}?overview=full&geometries=geojson`);
+
+    if (!response.ok) {
+      throw new Error(`OSRM API Error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.code === 'Ok' && data.matchings && data.matchings.length > 0) {
+      // OSRM은 [경도, 위도] 순서로 좌표를 반환하므로, [위도, 경도]로 순서를 바꿔줍니다.
+      const snappedCoords = data.matchings[0].geometry.coordinates.map(p => [p[1], p[0]]);
+
+      // 기존 경로가 있으면 지도에서 제거
+      if (snappedPathPolyline) {
+        map.removeLayer(snappedPathPolyline);
+      }
+
+      // 도로에 맞춰진 새로운 경로를 그림
+      snappedPathPolyline = L.polyline(snappedCoords, { color: 'blue' }).addTo(map);
+
+      // 경로가 보이도록 지도 뷰 조정 (필요 시 활성화)
+      // if (snappedPathPolyline.getBounds().isValid()) {
+      //   map.fitBounds(snappedPathPolyline.getBounds());
+      // }
+    } else {
+      console.warn('OSRM: No matching route found. Drawing raw path.');
+      // 매칭 실패 시 원본 좌표로 경로를 그림
+      drawRawPath(rawPathCoordinates);
+    }
+  } catch (error) {
+    console.error('Failed to snap to road:', error);
+    // 에러 발생 시 원본 좌표로 경로를 그림
+    drawRawPath(rawPathCoordinates);
+  } finally {
+    isSnapping = false;
+  }
+}
+
+/**
  * Geolocation API를 사용하여 위치 추적을 시작합니다.
  */
 export function startTracking() {
@@ -92,42 +144,49 @@ export function stopTracking() {
 }
 
 /**
- * 지도에 경로를 그립니다. 기존 경로는 지우고 새로 그립니다.
+ * 매칭 실패 또는 오프라인 시 원본 좌표로 경로를 그립니다.
  * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
  */
-export function drawPath(coordinates) {
-  // 기존 경로가 있으면 지도에서 제거
-  if (pathPolyline) {
-    map.removeLayer(pathPolyline);
+function drawRawPath(coordinates) {
+  if (snappedPathPolyline) {
+    map.removeLayer(snappedPathPolyline);
   }
+  if (coordinates && coordinates.length > 1) {
+    snappedPathPolyline = L.polyline(coordinates, { color: 'gray', dashArray: '5, 5' }).addTo(map);
+  }
+}
 
-  // 새로운 좌표로 경로를 다시 그림
-  pathCoordinates = coordinates; // 내부 좌표 데이터 업데이트
-  if (pathCoordinates && pathCoordinates.length > 1) {
-    pathPolyline = L.polyline(pathCoordinates, { color: 'blue' }).addTo(map);
-    // 경로가 보이도록 지도 뷰 조정
-    // map.fitBounds(pathPolyline.getBounds());
-  }
+/**
+ * 지도에 경로를 그립니다. 기존 경로는 지우고 새로 그립니다.
+ * 이 함수는 주로 DB에서 불러온 경로를 표시할 때 사용됩니다.
+ * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
+ */
+export async function drawPath(coordinates) {
+  clearPath(); // 우선 기존 경로를 모두 지웁니다.
+  rawPathCoordinates = coordinates || [];
+  await snapToRoad(); // 저장된 경로에 대해서도 스냅 기능을 시도합니다.
 }
 
 /**
  * 지도에 그려진 경로와 내부 좌표 데이터를 모두 초기화합니다.
  */
 export function clearPath() {
-  if (pathPolyline) {
-    map.removeLayer(pathPolyline);
-    pathPolyline = null;
+  if (snappedPathPolyline) {
+    map.removeLayer(snappedPathPolyline);
+    snappedPathPolyline = null;
   }
-  pathCoordinates = [];
+  rawPathCoordinates = [];
   console.log('Path cleared.');
 }
 
 /**
- * 현재까지 기록된 경로 좌표를 반환합니다.
+ * 현재까지 기록된 **원본** 경로 좌표를 반환합니다.
+ * DB에는 보정되지 않은 원본 GPS 좌표를 저장하여, 나중에 더 좋은
+ * 라우팅 엔진으로 재보정할 수 있는 가능성을 열어둡니다.
  * @returns {Array<[number, number]>}
  */
 export function getPathCoordinates() {
-  return pathCoordinates;
+  return rawPathCoordinates;
 }
 
 /**

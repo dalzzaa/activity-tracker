@@ -1,5 +1,5 @@
 import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity } from './db/indexedDB.js';
-import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath } from './map/mapHandler.js';
+import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
 // DOM 요소 선택
@@ -175,9 +175,10 @@ function handleStartTracking() {
 /**
  * '종료' 버튼 클릭을 처리하는 핸들러
  */
-function handleStopTracking() {
+async function handleStopTracking() {
   stopTracking();
-  alert('활동 기록을 종료합니다. 변경사항을 저장해주세요.');
+  await snapToRoad(); // 마지막으로 경로 보정
+  alert('활동 기록을 종료합니다. 보정된 최종 경로를 확인하고 저장해주세요.');
 }
 /**
  * 캘린더 뷰의 클릭 이벤트를 처리하는 핸들러 (이벤트 위임)
