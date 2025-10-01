@@ -42,9 +42,10 @@ let state = {
  * 상태를 기반으로 전체 UI를 다시 렌더링합니다.
  */
 function rerender() {
-  renderCalendar($calendarView, state.currentDate, state.activities);
   // 뷰 전환
   if (state.currentView === 'calendar') {
+    // 캘린더 뷰를 표시할 때만 캘린더를 다시 그립니다.
+    renderCalendar($calendarView, state.currentDate, state.activities);
     $calendarView.classList.remove('hidden');
     $detailView.classList.add('hidden');
   } else {
@@ -129,6 +130,8 @@ async function showDetailView(activityId, date) {
 
 function showCalendarView() {
   state.currentView = 'calendar';
+  // 캘린더 뷰로 돌아올 때, 활동 목록의 변경사항(삭제 등)을
+  // 반영하기 위해 캘린더를 다시 렌더링합니다.
   rerender();
 }
 
