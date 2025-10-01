@@ -325,10 +325,15 @@ async function handleSaveMemo() {
       activity.location_markers.push(newMarkerData);
     }
 
-    await updateActivity(activity);
+    const updatedActivity = await updateActivity(activity);
 
-    // UI 갱신: 기존 마커들을 모두 지우고 다시 그림
-    await showDetailView(state.currentActivityId, activity.date);
+    if (existingMarkerIndex > -1) {
+      // 기존 마커 수정 시: UI 전체를 다시 그려서 반영
+      await showDetailView(state.currentActivityId, updatedActivity.date);
+    } else {
+      // 새 마커 추가 시: 지도에 즉시 마커만 추가
+      addLocationMarker({ ...newMarkerData, markerId }, handleMarkerClick);
+    }
 
     hideMemoModal();
   } catch (error) {
