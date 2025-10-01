@@ -286,7 +286,7 @@ export function invalidateMapSize() {
  * @param {object} markerData - 마커 데이터 (lat, lng, memo, markerId 등 포함)
  */
 export function addLocationMarker(markerData, onMarkerClick) {
-  const { lat, lng, memo, markerId } = markerData;
+  const { lat, lng, memo } = markerData;
   const marker = L.marker([lat, lng]).addTo(map);
 
   // TODO: 사진 유무에 따라 아이콘/썸네일 분기 처리
@@ -303,5 +303,6 @@ export function addLocationMarker(markerData, onMarkerClick) {
     }
   });
 
+  // 마커 관리 배열에 추가
   locationMarkers.push(marker);
 }

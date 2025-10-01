@@ -33,7 +33,7 @@ let state = {
   activities: [],
   currentActivityId: null,
   isMapInitialized: false, // 지도 초기화 여부 플래그
-  currentMemo: { latlng: null, data: null, photoBlob: null, markerId: null }, // 현재 편집 중인 메모 정보
+  currentMemo: { latlng: null, photoBlobs: [], markerId: null }, // 현재 편집 중인 메모 정보
 };
 
 /**
@@ -240,26 +240,30 @@ function handleMarkerClick(markerData) {
  */
 async function showMemoModal(latlng, memoData = null) {
   state.currentMemo.latlng = latlng;
-  state.currentMemo.photoBlob = null; // 모달 열 때마다 사진 블랍 초기화
+  state.currentMemo.photoBlobs = []; // 모달 열 때마다 사진 블랍 초기화
   state.currentMemo.markerId = memoData ? memoData.markerId : null;
 
   $memoCoords.textContent = `위치: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
   $memoTextarea.value = memoData ? memoData.memo : '';
   
+  // 미리보기 초기화
+  $photoPreviewContainer.innerHTML = '';
+
   // 기존 메모의 사진 데이터 로드 및 미리보기 표시
-  if (memoData && memoData.mediaKey) {
-    try {
-      const photoData = await getMedia(memoData.mediaKey);
-      if (photoData) {
-        $photoPreview.src = URL.createObjectURL(photoData);
-        $photoPreviewContainer.classList.remove('hidden');
+  if (memoData && memoData.mediaKeys) {
+    memoData.mediaKeys.forEach(async (key) => {
+      try {
+        const photoData = await getMedia(key);
+        if (photoData) {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(photoData);
+          img.classList.add('photo-preview');
+          $photoPreviewContainer.appendChild(img);
+        }
+      } catch (error) {
+        console.error('Failed to load photo for memo:', error);
       }
-    } catch (error) {
-      console.error('Failed to load photo for memo:', error);
-    }
-  } else {
-  $photoPreviewContainer.classList.add('hidden');
-  $photoPreview.src = '';
+    });
   }
 
   $memoModal.classList.remove('hidden');
@@ -270,11 +274,13 @@ async function showMemoModal(latlng, memoData = null) {
  * 메모 모달을 숨깁니다.
  */
 function hideMemoModal() {
-  // 미리보기로 사용된 Object URL 메모리 해제
-  if ($photoPreview.src) {
-    URL.revokeObjectURL($photoPreview.src);
-  }
-  state.currentMemo = { latlng: null, data: null, photoBlob: null, markerId: null };
+  // 모든 미리보기 이미지의 Object URL 메모리 해제
+  $photoPreviewContainer.querySelectorAll('img').forEach(img => {
+    if (img.src.startsWith('blob:')) {
+      URL.revokeObjectURL(img.src);
+    }
+  });
+  state.currentMemo = { latlng: null, photoBlobs: [], markerId: null };
   // 파일 입력값 초기화 (같은 파일 다시 선택 가능하도록)
   $takePhotoInput.value = '';
   $selectPhotoInput.value = '';
@@ -287,9 +293,9 @@ function hideMemoModal() {
  */
 async function handleSaveMemo() {
   const memoText = $memoTextarea.value; // 빈 메모도 허용할 수 있으므로 trim() 제거
-  const photoBlob = state.currentMemo.photoBlob;
+  const photoBlobs = state.currentMemo.photoBlobs;
 
-  if (!memoText && !photoBlob) {
+  if (!memoText && photoBlobs.length === 0) {
     alert('메모 내용이나 사진을 추가해주세요.');
     return;
   }
@@ -299,18 +305,23 @@ async function handleSaveMemo() {
 
   try {
     const activity = await getActivity(state.currentActivityId);
-    let mediaKey = null;
+    let mediaKeys = [];
 
-    if (photoBlob) {
-      // 새 사진이 있으면 DB에 저장하고 키를 받음
-      mediaKey = await addMedia(photoBlob);
-    } else if (state.currentMemo.markerId) {
-      // 새 사진이 없고, 기존 메모 수정 중이면 기존 mediaKey 유지
-      const existingMarker = activity.location_markers.find(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId);
-      mediaKey = existingMarker ? existingMarker.mediaKey : null;
+    if (photoBlobs.length > 0) {
+      // 새로 추가된 사진들을 DB에 저장하고 키를 받음
+      mediaKeys = await Promise.all(photoBlobs.map(blob => addMedia(blob)));
     }
 
-    const newMarkerData = { lat, lng, memo: memoText, mediaKey };
+    // 기존 메모 수정 시, 새로 추가된 사진 외 기존 사진들의 키도 유지
+    if (state.currentMemo.markerId) {
+      const existingMarker = activity.location_markers.find(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId);
+      if (existingMarker && existingMarker.mediaKeys) {
+        // 새 사진 키와 기존 사진 키를 합침 (중복 제거는 필요 시 추가)
+        mediaKeys = [...mediaKeys, ...existingMarker.mediaKeys];
+      }
+    }
+
+    const newMarkerData = { lat, lng, memo: memoText, mediaKeys };
     activity.location_markers = activity.location_markers || [];
 
     const existingMarkerIndex = state.currentMemo.markerId
@@ -349,16 +360,14 @@ function handlePhotoSelected(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // 파일을 Blob으로 상태에 저장
-  state.currentMemo.photoBlob = file;
+  // 파일을 Blob 배열에 추가
+  state.currentMemo.photoBlobs.push(file);
 
   // 미리보기 표시
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    $photoPreview.src = event.target.result;
-    $photoPreviewContainer.classList.remove('hidden');
-  };
-  reader.readAsDataURL(file);
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
+  img.classList.add('photo-preview');
+  $photoPreviewContainer.appendChild(img);
 }
 
 /**
