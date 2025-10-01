@@ -185,17 +185,20 @@ export function deleteActivity(activityId) {
 export function updateActivity(activity) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORES.ACTIVITIES], 'readwrite');
-    const store = transaction.objectStore(STORES.ACTIVITIES);
-    // put은 업데이트와 생성을 모두 처리할 수 있습니다.
-    const request = store.put(activity);
-
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
+    
+    // 트랜잭션이 성공적으로 완료되었을 때 resolve를 호출합니다.
+    transaction.oncomplete = () => {
+      // request.result는 put 작업의 키(ID)입니다.
+      resolve(request.result);
     };
 
-    request.onerror = (event) => {
+    transaction.onerror = (event) => {
       console.error('Failed to update activity:', event.target.error);
       reject('활동 저장에 실패했습니다.');
     };
+
+    const store = transaction.objectStore(STORES.ACTIVITIES);
+    // put은 업데이트와 생성을 모두 처리할 수 있습니다.
+    const request = store.put(activity);
   });
 }
