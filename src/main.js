@@ -100,7 +100,7 @@ async function showDetailView(activityId, date) {
   }
 
   // 상세 뷰 데이터 설정
-  const displayDate = new Date(date.replace(/-/g, '/')); // Safari 호환성
+  const displayDate = new Date(date); // YYYY-MM-DD 형식의 날짜를 안정적으로 파싱
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   $detailDate.textContent = `${displayDate.getFullYear()}. ${String(displayDate.getMonth() + 1).padStart(2, '0')}. ${String(displayDate.getDate()).padStart(2, '0')}. ${dayNames[displayDate.getDay()]}.`;
   $detailTitleInput.value = activity.title;
