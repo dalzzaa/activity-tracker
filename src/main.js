@@ -298,20 +298,19 @@ async function handleSaveMemo() {
   const markerId = state.currentMemo.markerId || (lat + ',' + lng);
 
   try {
+    const activity = await getActivity(state.currentActivityId);
     let mediaKey = null;
+
     if (photoBlob) {
       // 새 사진이 있으면 DB에 저장하고 키를 받음
       mediaKey = await addMedia(photoBlob);
     } else if (state.currentMemo.markerId) {
       // 새 사진이 없고, 기존 메모 수정 중이면 기존 mediaKey 유지
-      const activity = await getActivity(state.currentActivityId);
       const existingMarker = activity.location_markers.find(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId);
       mediaKey = existingMarker ? existingMarker.mediaKey : null;
     }
 
     const newMarkerData = { lat, lng, memo: memoText, mediaKey };
-
-    const activity = await getActivity(state.currentActivityId);
     activity.location_markers = activity.location_markers || [];
 
     const existingMarkerIndex = state.currentMemo.markerId
