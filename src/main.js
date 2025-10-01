@@ -32,6 +32,7 @@ let state = {
   currentDate: new Date(),
   activities: [],
   currentActivityId: null,
+  currentActivityDate: null, // 상세 뷰에 표시 중인 활동의 날짜
   isMapInitialized: false, // 지도 초기화 여부 플래그
   currentMemo: { latlng: null, photoBlobs: [], markerId: null }, // 현재 편집 중인 메모 정보
 };
@@ -88,6 +89,7 @@ async function showDetailView(activityId, date) {
   }
 
   state.currentActivityId = activityId;
+  state.currentActivityDate = date; // 현재 활동의 날짜를 상태에 저장
   state.currentView = 'detail';
 
   // 상세 뷰를 열 때마다 이전 경로를 초기화합니다.
@@ -173,9 +175,8 @@ async function handleSaveActivity() {
       alert('활동이 수정되었습니다.');
     } else {
       // 새 활동 생성
-      const date = $detailDate.textContent.split('. ').slice(0, 3).join('-').replace(/\s/g, '');
       const newActivity = {
-        date,
+        date: state.currentActivityDate, // 상태에 저장된 정확한 날짜 사용
         title: newTitle,
         path_coordinates: getPathCoordinates(), // 현재까지 기록된 경로 저장
         location_markers: [],
