@@ -119,7 +119,7 @@ async function showDetailView(activityId, date) {
     activity.location_markers.forEach(markerData => {
       // 각 마커에 클릭 핸들러를 바인딩합니다.
       // markerId를 사용해 수정할 메모를 식별합니다.
-      addLocationMarker({ ...markerData, markerId: markerData.lat + ',' + markerData.lng }, handleMarkerClick);
+      addLocationMarker(markerData, handleMarkerClick);
     });
   }
 
@@ -322,7 +322,7 @@ async function handleSaveMemo() {
       }
     }
 
-    const newMarkerData = { lat, lng, memo: memoText, mediaKeys };
+    const newMarkerData = { markerId, lat, lng, memo: memoText, mediaKeys };
     activity.location_markers = activity.location_markers || [];
 
     const existingMarkerIndex = state.currentMemo.markerId
