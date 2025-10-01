@@ -1,6 +1,7 @@
 let map;
 let watchId = null;
 let rawPathCoordinates = []; // GPS에서 수집한 원본 좌표
+let rawPathPolyline = null; // 실시간으로 그려지는 원본 경로 Polyline
 let snappedPathPolyline = null; // 도로에 맞춰진 경로 Polyline
 
 const OSRM_SERVER_URL = 'https://router.project-osrm.org/match/v1/driving/';
@@ -121,8 +122,8 @@ export function startTracking() {
   watchId = navigator.geolocation.watchPosition( // eslint-disable-line no-undef
     (position) => {
       const { latitude, longitude } = position.coords;
-      pathCoordinates.push([latitude, longitude]);
-      drawPath(pathCoordinates);
+      rawPathCoordinates.push([latitude, longitude]);
+      updateRawPath(rawPathCoordinates); // 실시간으로 원본 경로를 그림
       console.log('Current position:', latitude, longitude);
     },
     (error) => {
@@ -148,11 +149,25 @@ export function stopTracking() {
  * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
  */
 function drawRawPath(coordinates) {
-  if (snappedPathPolyline) {
-    map.removeLayer(snappedPathPolyline);
+  if (rawPathPolyline) {
+    map.removeLayer(rawPathPolyline);
   }
   if (coordinates && coordinates.length > 1) {
-    snappedPathPolyline = L.polyline(coordinates, { color: 'gray', dashArray: '5, 5' }).addTo(map);
+    rawPathPolyline = L.polyline(coordinates, { color: 'gray', dashArray: '5, 5' }).addTo(map);
+  }
+}
+
+/**
+ * 실시간 추적 중 원본 좌표 경로를 업데이트합니다.
+ * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
+ */
+function updateRawPath(coordinates) {
+  if (!rawPathPolyline) {
+    // 경로가 없으면 새로 생성
+    rawPathPolyline = L.polyline(coordinates, { color: 'gray', dashArray: '5, 5' }).addTo(map);
+  } else {
+    // 기존 경로에 좌표 추가
+    rawPathPolyline.setLatLngs(coordinates);
   }
 }
 
@@ -163,6 +178,10 @@ function drawRawPath(coordinates) {
  */
 export async function drawPath(coordinates) {
   clearPath(); // 우선 기존 경로를 모두 지웁니다.
+  // DB에서 불러온 경로를 그릴 때, 원본 좌표는 회색 점선으로 표시
+  if (coordinates && coordinates.length > 0) {
+    drawRawPath(coordinates);
+  }
   rawPathCoordinates = coordinates || [];
   await snapToRoad(); // 저장된 경로에 대해서도 스냅 기능을 시도합니다.
 }
@@ -174,6 +193,10 @@ export function clearPath() {
   if (snappedPathPolyline) {
     map.removeLayer(snappedPathPolyline);
     snappedPathPolyline = null;
+  }
+  if (rawPathPolyline) {
+    map.removeLayer(rawPathPolyline);
+    rawPathPolyline = null;
   }
   rawPathCoordinates = [];
   console.log('Path cleared.');
