@@ -433,12 +433,13 @@ function handleSelectPhoto() {
  */
 async function handleCalendarClick(e) {
   const target = e.target;
+  let needsRerender = false;
 
   // 연/월 탐색
-  if (target.id === 'prev-year-btn') state.currentDate.setFullYear(state.currentDate.getFullYear() - 1);
-  else if (target.id === 'next-year-btn') state.currentDate.setFullYear(state.currentDate.getFullYear() + 1);
-  else if (target.id === 'prev-month-btn') state.currentDate.setMonth(state.currentDate.getMonth() - 1);
-  else if (target.id === 'next-month-btn') state.currentDate.setMonth(state.currentDate.getMonth() + 1);
+  if (target.id === 'prev-year-btn') { state.currentDate.setFullYear(state.currentDate.getFullYear() - 1); needsRerender = true; }
+  else if (target.id === 'next-year-btn') { state.currentDate.setFullYear(state.currentDate.getFullYear() + 1); needsRerender = true; }
+  else if (target.id === 'prev-month-btn') { state.currentDate.setMonth(state.currentDate.getMonth() - 1); needsRerender = true; }
+  else if (target.id === 'next-month-btn') { state.currentDate.setMonth(state.currentDate.getMonth() + 1); needsRerender = true; }
 
   // 활동 추가
   else if (target.classList.contains('add-activity-btn')) {
@@ -468,7 +469,7 @@ async function handleCalendarClick(e) {
   }
 
   // 날짜 변경이 있었을 경우에만 리렌더링
-  if (target.id.includes('-btn')) {
+  if (needsRerender) {
     rerender();
   }
 }
