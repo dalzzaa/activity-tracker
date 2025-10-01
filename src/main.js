@@ -309,6 +309,8 @@ async function handleSaveMemo() {
       mediaKey = existingMarker ? existingMarker.mediaKey : null;
     }
 
+    const newMarkerData = { lat, lng, memo: memoText, mediaKey };
+
     const activity = await getActivity(state.currentActivityId);
     activity.location_markers = activity.location_markers || [];
 
@@ -318,7 +320,7 @@ async function handleSaveMemo() {
 
     if (existingMarkerIndex > -1) {
       // 기존 마커 업데이트
-      activity.location_markers[existingMarkerIndex] = { ...activity.location_markers[existingMarkerIndex], lat, lng, memo: memoText, mediaKey };
+      activity.location_markers[existingMarkerIndex] = newMarkerData;
     } else {
       // 새 마커 추가
       activity.location_markers.push(newMarkerData);
