@@ -1,5 +1,5 @@
-import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia } from './db/indexedDB.js';
-import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker, getMedia } from './map/mapHandler.js';
+import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia, getMedia } from './db/indexedDB.js';
+import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
 // DOM 요소 선택
@@ -238,17 +238,29 @@ function handleMarkerClick(markerData) {
  * @param {L.LatLng} latlng - 메모를 추가할 위치의 좌표
  * @param {object | null} memoData - 기존 메모 데이터 (수정 시)
  */
-function showMemoModal(latlng, memoData = null) {
+async function showMemoModal(latlng, memoData = null) {
   state.currentMemo.latlng = latlng;
   state.currentMemo.photoBlob = null; // 모달 열 때마다 사진 블랍 초기화
   state.currentMemo.markerId = memoData ? memoData.markerId : null;
 
   $memoCoords.textContent = `위치: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
   $memoTextarea.value = memoData ? memoData.memo : '';
-
-  // TODO: 사진 데이터 로드 및 미리보기 표시 로직 추가
+  
+  // 기존 메모의 사진 데이터 로드 및 미리보기 표시
+  if (memoData && memoData.mediaKey) {
+    try {
+      const photoData = await getMedia(memoData.mediaKey);
+      if (photoData) {
+        $photoPreview.src = URL.createObjectURL(photoData);
+        $photoPreviewContainer.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Failed to load photo for memo:', error);
+    }
+  } else {
   $photoPreviewContainer.classList.add('hidden');
   $photoPreview.src = '';
+  }
 
   $memoModal.classList.remove('hidden');
   $modalBackdrop.classList.remove('hidden');
@@ -258,6 +270,10 @@ function showMemoModal(latlng, memoData = null) {
  * 메모 모달을 숨깁니다.
  */
 function hideMemoModal() {
+  // 미리보기로 사용된 Object URL 메모리 해제
+  if ($photoPreview.src) {
+    URL.revokeObjectURL($photoPreview.src);
+  }
   state.currentMemo = { latlng: null, data: null, photoBlob: null, markerId: null };
   // 파일 입력값 초기화 (같은 파일 다시 선택 가능하도록)
   $takePhotoInput.value = '';
@@ -284,10 +300,14 @@ async function handleSaveMemo() {
   try {
     let mediaKey = null;
     if (photoBlob) {
+      // 새 사진이 있으면 DB에 저장하고 키를 받음
       mediaKey = await addMedia(photoBlob);
+    } else if (state.currentMemo.markerId) {
+      // 새 사진이 없고, 기존 메모 수정 중이면 기존 mediaKey 유지
+      const activity = await getActivity(state.currentActivityId);
+      const existingMarker = activity.location_markers.find(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId);
+      mediaKey = existingMarker ? existingMarker.mediaKey : null;
     }
-
-    const newMarkerData = { lat, lng, memo: memoText, mediaKey };
 
     const activity = await getActivity(state.currentActivityId);
     activity.location_markers = activity.location_markers || [];
@@ -298,7 +318,7 @@ async function handleSaveMemo() {
 
     if (existingMarkerIndex > -1) {
       // 기존 마커 업데이트
-      activity.location_markers[existingMarkerIndex] = newMarkerData;
+      activity.location_markers[existingMarkerIndex] = { ...activity.location_markers[existingMarkerIndex], lat, lng, memo: memoText, mediaKey };
     } else {
       // 새 마커 추가
       activity.location_markers.push(newMarkerData);

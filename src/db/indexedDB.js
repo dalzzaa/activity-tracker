@@ -133,6 +133,29 @@ export function getActivity(activityId) {
 }
 
 /**
+ * 키를 사용하여 특정 미디어 데이터를 조회합니다.
+ * @param {number} mediaKey - 조회할 미디어의 키
+ * @returns {Promise<Blob|undefined>} 미디어 데이터 (Blob)
+ */
+export function getMedia(mediaKey) {
+  return new Promise((resolve, reject) => {
+    if (!mediaKey) return resolve(undefined);
+
+    const transaction = db.transaction([STORES.MEDIA], 'readonly');
+    const store = transaction.objectStore(STORES.MEDIA);
+    const request = store.get(mediaKey);
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      console.error('Failed to get media:', event.target.error);
+      reject('미디어 파일을 불러오는 데 실패했습니다.');
+    };
+  });
+}
+/**
  * ID를 사용하여 활동을 삭제합니다.
  * @param {number} activityId - 삭제할 활동의 ID
  * @returns {Promise<void>}
