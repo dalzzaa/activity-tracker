@@ -346,6 +346,9 @@ async function handleSaveMemo() {
       addLocationMarker({ ...newMarkerData, markerId }, handleMarkerClick);
     }
 
+    // 메모 저장 후 활동 목록을 다시 로드하여 state를 최신으로 유지
+    await loadActivities();
+
     hideMemoModal();
   } catch (error) {
     alert('메모 저장에 실패했습니다: ' + error);
@@ -357,17 +360,19 @@ async function handleSaveMemo() {
  * @param {Event} e
  */
 function handlePhotoSelected(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
 
-  // 파일을 Blob 배열에 추가
-  state.currentMemo.photoBlobs.push(file);
+  // 선택된 모든 파일을 Blob 배열에 추가하고 미리보기를 생성합니다.
+  Array.from(files).forEach(file => {
+    state.currentMemo.photoBlobs.push(file);
 
-  // 미리보기 표시
-  const img = document.createElement('img');
-  img.src = URL.createObjectURL(file);
-  img.classList.add('photo-preview');
-  $photoPreviewContainer.appendChild(img);
+    // 미리보기 표시
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    img.classList.add('photo-preview');
+    $photoPreviewContainer.appendChild(img);
+  });
 }
 
 /**
