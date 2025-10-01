@@ -25,14 +25,15 @@ export function initMap(mapContainer, onMapClick) {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
-}
 
   // 지도 클릭 이벤트 핸들러
+  // map 객체가 생성된 후에 이벤트를 바인딩해야 합니다.
   map.on('click', (e) => {
     if (onMapClickCallback) {
       onMapClickCallback(e.latlng);
     }
   });
+}
 /**
  * 사용자의 현재 위치를 기반으로 지도 뷰를 설정합니다.
  */
