@@ -1,5 +1,5 @@
 import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity } from './db/indexedDB.js';
-import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad } from './map/mapHandler.js';
+import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
 // DOM 요소 선택
@@ -13,6 +13,12 @@ const $startTrackingBtn = document.getElementById('start-tracking-btn');
 const $pauseTrackingBtn = document.getElementById('pause-tracking-btn'); // '중지' 버튼은 아직 기능 미구현
 const $stopTrackingBtn = document.getElementById('stop-tracking-btn');
 const $saveActivityBtn = document.getElementById('save-activity-btn');
+const $memoModal = document.getElementById('memo-modal');
+const $modalBackdrop = document.getElementById('modal-backdrop');
+const $memoCoords = document.getElementById('memo-coords');
+const $memoTextarea = document.getElementById('memo-textarea');
+const $memoSaveBtn = document.getElementById('memo-save-btn');
+const $memoCancelBtn = document.getElementById('memo-cancel-btn');
 
 // 애플리케이션 상태
 let state = {
@@ -21,6 +27,7 @@ let state = {
   activities: [],
   currentActivityId: null,
   isMapInitialized: false, // 지도 초기화 여부 플래그
+  currentMemo: { latlng: null, data: null }, // 현재 편집 중인 메모 정보
 };
 
 /**
@@ -69,7 +76,7 @@ function updateTrackingButtonsState(disabled) {
 async function showDetailView(activityId, date) {
   // 상세 뷰가 처음 열릴 때 딱 한 번만 지도를 초기화합니다.
   if (!state.isMapInitialized) {
-    initMap($mapContainer);
+    initMap($mapContainer, handleMapClick); // 지도 클릭 핸들러 전달
     setInitialView();
     state.isMapInitialized = true;
   }
@@ -99,6 +106,10 @@ async function showDetailView(activityId, date) {
 
   // DB에서 불러온 활동의 기존 경로를 지도에 그립니다.
   drawPath(activity.path_coordinates || []);
+  // DB에서 불러온 위치 마커(메모)를 지도에 그립니다.
+  if (activity.location_markers) {
+    activity.location_markers.forEach(addLocationMarker);
+  }
 
   rerender();
 }
@@ -143,7 +154,11 @@ async function handleSaveActivity() {
       // 기존 활동 업데이트
       const activity = await getActivity(state.currentActivityId);
       activity.title = newTitle;
-      activity.path_coordinates = getPathCoordinates(); // 현재까지 기록된 경로 저장
+      // 경로가 추적 중일 때만 경로를 업데이트합니다.
+      const currentPath = getPathCoordinates();
+      if (currentPath && currentPath.length > 0) {
+        activity.path_coordinates = currentPath;
+      }
       await updateActivity(activity);
       alert('활동이 수정되었습니다.');
     } else {
@@ -183,6 +198,72 @@ async function handleStopTracking() {
   stopTracking();
   await snapToRoad(); // 마지막으로 경로 보정
   alert('활동 기록을 종료합니다. 보정된 최종 경로를 확인하고 저장해주세요.');
+}
+
+/**
+ * 지도 클릭을 처리하고 메모 모달을 표시하는 핸들러
+ * @param {L.LatLng} latlng - 클릭된 위치의 좌표
+ */
+function handleMapClick(latlng) {
+  // 활동이 저장된 후에만 메모를 추가할 수 있습니다.
+  if (!state.currentActivityId) {
+    alert('활동을 먼저 저장해주세요.');
+    return;
+  }
+  // TODO: 기존 마커를 클릭했는지 확인하고, 그렇다면 해당 메모를 로드하는 로직 추가
+  showMemoModal(latlng);
+}
+
+/**
+ * 메모 모달을 표시합니다.
+ * @param {L.LatLng} latlng - 메모를 추가할 위치의 좌표
+ * @param {object | null} memoData - 기존 메모 데이터 (수정 시)
+ */
+function showMemoModal(latlng, memoData = null) {
+  state.currentMemo.latlng = latlng;
+  state.currentMemo.data = memoData;
+
+  $memoCoords.textContent = `위치: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+  $memoTextarea.value = memoData ? memoData.memo : '';
+
+  $memoModal.classList.remove('hidden');
+  $modalBackdrop.classList.remove('hidden');
+}
+
+/**
+ * 메모 모달을 숨깁니다.
+ */
+function hideMemoModal() {
+  state.currentMemo = { latlng: null, data: null };
+  $memoModal.classList.add('hidden');
+  $modalBackdrop.classList.add('hidden');
+}
+
+/**
+ * 메모 저장 버튼 클릭을 처리하는 핸들러
+ */
+async function handleSaveMemo() {
+  const memoText = $memoTextarea.value.trim();
+  if (!memoText) {
+    alert('메모 내용을 입력해주세요.');
+    return;
+  }
+
+  const { lat, lng } = state.currentMemo.latlng;
+  const newMarkerData = { lat, lng, memo: memoText };
+
+  try {
+    const activity = await getActivity(state.currentActivityId);
+    // TODO: 기존 메모 수정 로직 추가
+    activity.location_markers = activity.location_markers || [];
+    activity.location_markers.push(newMarkerData);
+    await updateActivity(activity);
+
+    addLocationMarker(newMarkerData); // 지도에 즉시 마커 추가
+    hideMemoModal();
+  } catch (error) {
+    alert('메모 저장에 실패했습니다: ' + error);
+  }
 }
 /**
  * 캘린더 뷰의 클릭 이벤트를 처리하는 핸들러 (이벤트 위임)
@@ -236,3 +317,6 @@ $backToCalendarBtn.addEventListener('click', showCalendarView);
 $saveActivityBtn.addEventListener('click', handleSaveActivity);
 $startTrackingBtn.addEventListener('click', handleStartTracking);
 $stopTrackingBtn.addEventListener('click', handleStopTracking);
+$memoSaveBtn.addEventListener('click', handleSaveMemo);
+$memoCancelBtn.addEventListener('click', hideMemoModal);
+$modalBackdrop.addEventListener('click', hideMemoModal);

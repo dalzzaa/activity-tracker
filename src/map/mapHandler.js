@@ -5,17 +5,21 @@ let rawPathPolyline = null; // 실시간으로 그려지는 원본 경로 Polyli
 let snappedPathPolyline = null; // 도로에 맞춰진 경로 Polyline
 let startMarker = null; // 시작 위치 마커
 let currentPosMarker = null; // 현재 위치 마커
+let locationMarkers = []; // 메모/사진 위치 마커 배열
+let onMapClickCallback = null; // 지도 클릭 시 호출될 콜백 함수
 
 const OSRM_SERVER_URL = 'https://router.project-osrm.org/match/v1/driving/';
 let isSnapping = false; // 스냅 API 호출 중복 방지 플래그
 /**
  * Leaflet 지도를 초기화합니다.
  * @param {HTMLElement} mapContainer - 지도를 표시할 DOM 요소
+ * @param {function} onMapClick - 지도 클릭 시 호출될 콜백 함수
  */
-export function initMap(mapContainer) {
+export function initMap(mapContainer, onMapClick) {
   if (!mapContainer) {
     throw new Error('Map container not found!');
   }
+  onMapClickCallback = onMapClick;
   map = L.map(mapContainer);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -23,6 +27,12 @@ export function initMap(mapContainer) {
   }).addTo(map);
 }
 
+  // 지도 클릭 이벤트 핸들러
+  map.on('click', (e) => {
+    if (onMapClickCallback) {
+      onMapClickCallback(e.latlng);
+    }
+  });
 /**
  * 사용자의 현재 위치를 기반으로 지도 뷰를 설정합니다.
  */
@@ -212,8 +222,8 @@ function updateCurrentPositionMarker(latlng) {
  * @param {Array<[number, number]>} coordinates - 경로를 구성하는 좌표 배열
  */
 export async function drawPath(coordinates) {
-  clearPath(); // 우선 기존 경로를 모두 지웁니다.
   // DB에서 불러온 경로를 그릴 때, 원본 좌표는 회색 점선으로 표시
+  clearPath(); // 우선 기존 경로를 모두 지웁니다.
   if (coordinates && coordinates.length > 1) {
     // 시작 마커 추가
     startMarker = L.marker(coordinates[0]).addTo(map).bindPopup('시작');
@@ -244,6 +254,9 @@ export function clearPath() {
     map.removeLayer(currentPosMarker);
     currentPosMarker = null;
   }
+  locationMarkers.forEach(marker => map.removeLayer(marker));
+  locationMarkers = [];
+
   rawPathCoordinates = [];
   console.log('Path cleared.');
 }
@@ -267,4 +280,20 @@ export function invalidateMapSize() {
   }
 }
 
-// TODO: addMarker 등 지도 관련 함수들을 추가로 구현합니다.
+/**
+ * 지도에 위치 마커(메모 등)를 추가합니다.
+ * @param {object} markerData - 마커 데이터 (lat, lng, memo 포함)
+ */
+export function addLocationMarker(markerData) {
+  const { lat, lng, memo } = markerData;
+  const marker = L.marker([lat, lng]).addTo(map);
+
+  // TODO: 사진 유무에 따라 아이콘/썸네일 분기 처리
+  if (memo) {
+    marker.bindPopup(`<b>메모:</b><br>${memo}`);
+  } else {
+    marker.bindPopup('위치 마커');
+  }
+
+  locationMarkers.push(marker);
+}
