@@ -42,6 +42,10 @@ let state = {
  * 상태를 기반으로 전체 UI를 다시 렌더링합니다.
  */
 function rerender() {
+  // 뷰를 전환할 때 모달 관련 요소들이 항상 숨겨지도록 보장합니다.
+  $memoModal.classList.add('hidden');
+  $modalBackdrop.classList.add('hidden');
+
   // 뷰 전환
   if (state.currentView === 'calendar') {
     // 캘린더 뷰를 표시할 때만 캘린더를 다시 그립니다.
