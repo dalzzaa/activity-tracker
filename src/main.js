@@ -1,5 +1,5 @@
-import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity } from './db/indexedDB.js';
-import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker } from './map/mapHandler.js';
+import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia } from './db/indexedDB.js';
+import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker, getMedia } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
 // DOM 요소 선택
@@ -19,6 +19,12 @@ const $memoCoords = document.getElementById('memo-coords');
 const $memoTextarea = document.getElementById('memo-textarea');
 const $memoSaveBtn = document.getElementById('memo-save-btn');
 const $memoCancelBtn = document.getElementById('memo-cancel-btn');
+const $takePhotoBtn = document.getElementById('take-photo-btn');
+const $selectPhotoBtn = document.getElementById('select-photo-btn');
+const $takePhotoInput = document.getElementById('take-photo-input');
+const $selectPhotoInput = document.getElementById('select-photo-input');
+const $photoPreviewContainer = document.getElementById('photo-preview-container');
+const $photoPreview = document.getElementById('photo-preview');
 
 // 애플리케이션 상태
 let state = {
@@ -27,7 +33,7 @@ let state = {
   activities: [],
   currentActivityId: null,
   isMapInitialized: false, // 지도 초기화 여부 플래그
-  currentMemo: { latlng: null, data: null }, // 현재 편집 중인 메모 정보
+  currentMemo: { latlng: null, data: null, photoBlob: null, markerId: null }, // 현재 편집 중인 메모 정보
 };
 
 /**
@@ -108,7 +114,11 @@ async function showDetailView(activityId, date) {
   drawPath(activity.path_coordinates || []);
   // DB에서 불러온 위치 마커(메모)를 지도에 그립니다.
   if (activity.location_markers) {
-    activity.location_markers.forEach(addLocationMarker);
+    activity.location_markers.forEach(markerData => {
+      // 각 마커에 클릭 핸들러를 바인딩합니다.
+      // markerId를 사용해 수정할 메모를 식별합니다.
+      addLocationMarker({ ...markerData, markerId: markerData.lat + ',' + markerData.lng }, handleMarkerClick);
+    });
   }
 
   rerender();
@@ -210,8 +220,17 @@ function handleMapClick(latlng) {
     alert('활동을 먼저 저장해주세요.');
     return;
   }
-  // TODO: 기존 마커를 클릭했는지 확인하고, 그렇다면 해당 메모를 로드하는 로직 추가
+  // 새 메모 생성을 위해 모달을 엽니다.
   showMemoModal(latlng);
+}
+
+/**
+ * 기존 마커 클릭을 처리하고 메모 모달을 표시하는 핸들러
+ * @param {object} markerData - 클릭된 마커의 데이터
+ */
+function handleMarkerClick(markerData) {
+  // 기존 메모 수정을 위해 모달을 엽니다.
+  showMemoModal(L.latLng(markerData.lat, markerData.lng), markerData);
 }
 
 /**
@@ -221,10 +240,15 @@ function handleMapClick(latlng) {
  */
 function showMemoModal(latlng, memoData = null) {
   state.currentMemo.latlng = latlng;
-  state.currentMemo.data = memoData;
+  state.currentMemo.photoBlob = null; // 모달 열 때마다 사진 블랍 초기화
+  state.currentMemo.markerId = memoData ? memoData.markerId : null;
 
   $memoCoords.textContent = `위치: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
   $memoTextarea.value = memoData ? memoData.memo : '';
+
+  // TODO: 사진 데이터 로드 및 미리보기 표시 로직 추가
+  $photoPreviewContainer.classList.add('hidden');
+  $photoPreview.src = '';
 
   $memoModal.classList.remove('hidden');
   $modalBackdrop.classList.remove('hidden');
@@ -234,7 +258,10 @@ function showMemoModal(latlng, memoData = null) {
  * 메모 모달을 숨깁니다.
  */
 function hideMemoModal() {
-  state.currentMemo = { latlng: null, data: null };
+  state.currentMemo = { latlng: null, data: null, photoBlob: null, markerId: null };
+  // 파일 입력값 초기화 (같은 파일 다시 선택 가능하도록)
+  $takePhotoInput.value = '';
+  $selectPhotoInput.value = '';
   $memoModal.classList.add('hidden');
   $modalBackdrop.classList.add('hidden');
 }
@@ -243,28 +270,85 @@ function hideMemoModal() {
  * 메모 저장 버튼 클릭을 처리하는 핸들러
  */
 async function handleSaveMemo() {
-  const memoText = $memoTextarea.value.trim();
-  if (!memoText) {
-    alert('메모 내용을 입력해주세요.');
+  const memoText = $memoTextarea.value; // 빈 메모도 허용할 수 있으므로 trim() 제거
+  const photoBlob = state.currentMemo.photoBlob;
+
+  if (!memoText && !photoBlob) {
+    alert('메모 내용이나 사진을 추가해주세요.');
     return;
   }
 
   const { lat, lng } = state.currentMemo.latlng;
-  const newMarkerData = { lat, lng, memo: memoText };
+  const markerId = state.currentMemo.markerId || (lat + ',' + lng);
 
   try {
+    let mediaKey = null;
+    if (photoBlob) {
+      mediaKey = await addMedia(photoBlob);
+    }
+
+    const newMarkerData = { lat, lng, memo: memoText, mediaKey };
+
     const activity = await getActivity(state.currentActivityId);
-    // TODO: 기존 메모 수정 로직 추가
     activity.location_markers = activity.location_markers || [];
-    activity.location_markers.push(newMarkerData);
+
+    const existingMarkerIndex = state.currentMemo.markerId
+      ? activity.location_markers.findIndex(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId)
+      : -1;
+
+    if (existingMarkerIndex > -1) {
+      // 기존 마커 업데이트
+      activity.location_markers[existingMarkerIndex] = newMarkerData;
+    } else {
+      // 새 마커 추가
+      activity.location_markers.push(newMarkerData);
+    }
+
     await updateActivity(activity);
 
-    addLocationMarker(newMarkerData); // 지도에 즉시 마커 추가
+    // UI 갱신: 기존 마커들을 모두 지우고 다시 그림
+    await showDetailView(state.currentActivityId, activity.date);
+
     hideMemoModal();
   } catch (error) {
     alert('메모 저장에 실패했습니다: ' + error);
   }
 }
+
+/**
+ * 파일 입력(사진) 변경을 처리하는 핸들러
+ * @param {Event} e
+ */
+function handlePhotoSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // 파일을 Blob으로 상태에 저장
+  state.currentMemo.photoBlob = file;
+
+  // 미리보기 표시
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    $photoPreview.src = event.target.result;
+    $photoPreviewContainer.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * '사진 찍기' 버튼 클릭 핸들러
+ */
+function handleTakePhoto() {
+  $takePhotoInput.click();
+}
+
+/**
+ * '사진 선택' 버튼 클릭 핸들러
+ */
+function handleSelectPhoto() {
+  $selectPhotoInput.click();
+}
+
 /**
  * 캘린더 뷰의 클릭 이벤트를 처리하는 핸들러 (이벤트 위임)
  * @param {MouseEvent} e - 클릭 이벤트 객체
@@ -319,4 +403,8 @@ $startTrackingBtn.addEventListener('click', handleStartTracking);
 $stopTrackingBtn.addEventListener('click', handleStopTracking);
 $memoSaveBtn.addEventListener('click', handleSaveMemo);
 $memoCancelBtn.addEventListener('click', hideMemoModal);
+$takePhotoBtn.addEventListener('click', handleTakePhoto);
+$selectPhotoBtn.addEventListener('click', handleSelectPhoto);
+$takePhotoInput.addEventListener('change', handlePhotoSelected);
+$selectPhotoInput.addEventListener('change', handlePhotoSelected);
 $modalBackdrop.addEventListener('click', hideMemoModal);

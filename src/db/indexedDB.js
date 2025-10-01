@@ -68,6 +68,28 @@ export function addActivity(activity) {
 }
 
 /**
+ * 미디어(사진 등) 데이터를 데이터베이스에 추가합니다.
+ * @param {Blob} mediaData - 저장할 미디어 데이터
+ * @returns {Promise<number>} 추가된 미디어의 키
+ */
+export function addMedia(mediaData) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORES.MEDIA], 'readwrite');
+    const store = transaction.objectStore(STORES.MEDIA);
+    const request = store.add(mediaData);
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result); // 새로 생성된 키 반환
+    };
+
+    request.onerror = (event) => {
+      console.error('Failed to add media:', event.target.error);
+      reject('미디어 파일 저장에 실패했습니다.');
+    };
+  });
+}
+
+/**
  * 데이터베이스에 저장된 모든 활동을 조회합니다.
  * @returns {Promise<Array<object>>} 활동 객체의 배열
  */

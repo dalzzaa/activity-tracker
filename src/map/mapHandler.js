@@ -283,18 +283,25 @@ export function invalidateMapSize() {
 
 /**
  * 지도에 위치 마커(메모 등)를 추가합니다.
- * @param {object} markerData - 마커 데이터 (lat, lng, memo 포함)
+ * @param {object} markerData - 마커 데이터 (lat, lng, memo, markerId 등 포함)
  */
-export function addLocationMarker(markerData) {
-  const { lat, lng, memo } = markerData;
+export function addLocationMarker(markerData, onMarkerClick) {
+  const { lat, lng, memo, markerId } = markerData;
   const marker = L.marker([lat, lng]).addTo(map);
 
   // TODO: 사진 유무에 따라 아이콘/썸네일 분기 처리
   if (memo) {
     marker.bindPopup(`<b>메모:</b><br>${memo}`);
   } else {
-    marker.bindPopup('위치 마커');
+    marker.bindPopup('위치');
   }
+
+  // 마커 클릭 시 메모 수정/보기 모달을 열도록 이벤트 핸들러 연결
+  marker.on('click', () => {
+    if (onMarkerClick) {
+      onMarkerClick(markerData);
+    }
+  });
 
   locationMarkers.push(marker);
 }
