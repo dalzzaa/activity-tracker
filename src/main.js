@@ -23,8 +23,9 @@ const $takePhotoBtn = document.getElementById('take-photo-btn');
 const $selectPhotoBtn = document.getElementById('select-photo-btn');
 const $takePhotoInput = document.getElementById('take-photo-input');
 const $selectPhotoInput = document.getElementById('select-photo-input');
-const $photoPreviewContainer = document.getElementById('photo-preview-container');
-const $photoPreview = document.getElementById('photo-preview');
+const $photoPreviewContainer = document.getElementById('photo-preview-container'); 
+const $imageZoomModal = document.getElementById('image-zoom-modal');
+const $zoomedImage = document.getElementById('zoomed-image');
 
 // 애플리케이션 상태
 let state = {
@@ -33,7 +34,7 @@ let state = {
   activities: [],
   currentActivityId: null,
   currentActivityDate: null, // 상세 뷰에 표시 중인 활동의 날짜
-  isMapInitialized: false, // 지도 초기화 여부 플래그
+  isMapInitialized: false, // 지도 초기화 여부 플래그 
   currentMemo: { latlng: null, photoBlobs: [], markerId: null }, // 현재 편집 중인 메모 정보
 };
 
@@ -251,18 +252,14 @@ async function showMemoModal(latlng, memoData = null) {
   $photoPreviewContainer.innerHTML = '';
 
   // 기존 메모의 사진 데이터 로드 및 미리보기 표시
-  if (memoData && memoData.mediaKeys) {
-    memoData.mediaKeys.forEach(async (key) => {
-      try {
-        const photoData = await getMedia(key);
-        if (photoData) {
-          const img = document.createElement('img');
-          img.src = URL.createObjectURL(photoData);
-          img.classList.add('photo-preview');
-          $photoPreviewContainer.appendChild(img);
-        }
-      } catch (error) {
-        console.error('Failed to load photo for memo:', error);
+  if (memoData && memoData.mediaKeys && memoData.mediaKeys.length > 0) {
+    const photoPromises = memoData.mediaKeys.map(key => getMedia(key).catch(e => { console.error(e); return null; }));
+    const photoDatas = await Promise.all(photoPromises);
+    photoDatas.forEach((photoData, index) => {
+      if (photoData) {
+        const key = memoData.mediaKeys[index];
+        const src = URL.createObjectURL(photoData);
+        addPhotoPreview(src, 'db', key);
       }
     });
   }
@@ -276,7 +273,7 @@ async function showMemoModal(latlng, memoData = null) {
  */
 function hideMemoModal() {
   // 모든 미리보기 이미지의 Object URL 메모리 해제
-  $photoPreviewContainer.querySelectorAll('img').forEach(img => {
+  $photoPreviewContainer.querySelectorAll('.photo-preview').forEach(img => {
     if (img.src.startsWith('blob:')) {
       URL.revokeObjectURL(img.src);
     }
@@ -315,8 +312,8 @@ async function handleSaveMemo() {
 
     // 기존 메모 수정 시, 새로 추가된 사진 외 기존 사진들의 키도 유지
     if (state.currentMemo.markerId) {
-      const existingMarker = activity.location_markers.find(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId);
-      if (existingMarker && existingMarker.mediaKeys) {
+      const existingMarker = activity.location_markers.find(m => m.markerId === state.currentMemo.markerId);
+      if (existingMarker && existingMarker.mediaKeys) { 
         // 새 사진 키와 기존 사진 키를 합침 (중복 제거는 필요 시 추가)
         mediaKeys = [...mediaKeys, ...existingMarker.mediaKeys];
       }
@@ -326,7 +323,7 @@ async function handleSaveMemo() {
     activity.location_markers = activity.location_markers || [];
 
     const existingMarkerIndex = state.currentMemo.markerId
-      ? activity.location_markers.findIndex(m => (m.lat + ',' + m.lng) === state.currentMemo.markerId)
+      ? activity.location_markers.findIndex(m => m.markerId === state.currentMemo.markerId)
       : -1;
 
     if (existingMarkerIndex > -1) {
@@ -357,16 +354,63 @@ function handlePhotoSelected(e) {
   const files = e.target.files;
   if (!files || files.length === 0) return;
 
-  // 선택된 모든 파일을 Blob 배열에 추가하고 미리보기를 생성합니다.
+  // 선택된 모든 파일을 Blob 배열에 추가하고 미리보기를 생성합니다. 
   Array.from(files).forEach(file => {
-    state.currentMemo.photoBlobs.push(file);
+    const blobIndex = state.currentMemo.photoBlobs.push(file) - 1;
 
     // 미리보기 표시
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(file);
-    img.classList.add('photo-preview');
-    $photoPreviewContainer.appendChild(img);
+    const src = URL.createObjectURL(file);
+    addPhotoPreview(src, 'local', blobIndex);
   });
+}
+
+/**
+ * 사진 미리보기를 DOM에 추가합니다.
+ * @param {string} src - 이미지 src (Object URL)
+ * @param {'local'|'db'} type - 사진 출처 (로컬 파일 또는 DB)
+ * @param {number} identifier - 식별자 (로컬: blob 인덱스, DB: mediaKey)
+ */
+function addPhotoPreview(src, type, identifier) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'preview-image-wrapper';
+
+  const img = document.createElement('img');
+  img.src = src;
+  img.className = 'photo-preview';
+  img.dataset.type = type;
+  img.dataset.identifier = identifier;
+
+  const deleteBtn = document.createElement('div');
+  deleteBtn.className = 'delete-photo-btn';
+  deleteBtn.innerHTML = '&times;';
+  deleteBtn.dataset.type = type;
+  deleteBtn.dataset.identifier = identifier;
+
+  wrapper.appendChild(img);
+  wrapper.appendChild(deleteBtn);
+  $photoPreviewContainer.appendChild(wrapper);
+}
+
+/**
+ * 사진 미리보기 영역의 클릭 이벤트를 처리합니다 (삭제, 확대).
+ * @param {MouseEvent} e
+ */
+async function handlePreviewClick(e) {
+  const target = e.target;
+
+  if (target.classList.contains('delete-photo-btn')) {
+    const { type, identifier } = target.dataset;
+    if (type === 'local') {
+      state.currentMemo.photoBlobs[parseInt(identifier, 10)] = null; // 배열에서 null로 표시
+    } else if (type === 'db') {
+      // DB에서 불러온 사진 삭제 로직 (기존 mediaKeys에서 해당 키 제거)
+      // TODO: DB에서 직접 media를 삭제하는 로직도 추가 가능
+    }
+    target.parentElement.remove(); // DOM에서 제거
+  } else if (target.classList.contains('photo-preview')) {
+    $zoomedImage.src = target.src;
+    $imageZoomModal.classList.remove('hidden');
+  }
 }
 
 /**
@@ -441,4 +485,6 @@ $takePhotoBtn.addEventListener('click', handleTakePhoto);
 $selectPhotoBtn.addEventListener('click', handleSelectPhoto);
 $takePhotoInput.addEventListener('change', handlePhotoSelected);
 $selectPhotoInput.addEventListener('change', handlePhotoSelected);
+$photoPreviewContainer.addEventListener('click', handlePreviewClick);
+$imageZoomModal.addEventListener('click', () => $imageZoomModal.classList.add('hidden'));
 $modalBackdrop.addEventListener('click', hideMemoModal);
