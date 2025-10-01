@@ -35,6 +35,10 @@ function rerender() {
   } else {
     $calendarView.classList.add('hidden');
     $detailView.classList.remove('hidden');
+    // 상세 뷰가 다시 활성화될 때, 백그라운드에서 변경되었을 수 있는
+    // 경로를 다시 그려주어 최신 상태를 반영합니다.
+    // (요구사항 3: 다른 화면 전환 후 복귀 시 경로 업데이트)
+    drawPath(getPathCoordinates());
     invalidateMapSize(); // 지도가 다시 표시될 때 크기 재계산
   }
 }
