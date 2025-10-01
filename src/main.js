@@ -336,10 +336,11 @@ async function handleSaveMemo() {
       activity.location_markers.push(newMarkerData);
     }
 
-    const updatedActivity = await updateActivity(activity);
+    const activityDate = activity.date; // 날짜 정보를 미리 저장
+    await updateActivity(activity);
 
     // 저장이 완료되면, DB에서 최신 데이터를 가져와 상세 뷰를 다시 렌더링합니다.
-    await showDetailView(state.currentActivityId, updatedActivity.date);
+    await showDetailView(state.currentActivityId, activityDate);
 
     hideMemoModal();
   } catch (error) {
