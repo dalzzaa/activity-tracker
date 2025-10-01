@@ -338,16 +338,8 @@ async function handleSaveMemo() {
 
     const updatedActivity = await updateActivity(activity);
 
-    if (existingMarkerIndex > -1) {
-      // 기존 마커 수정 시: UI 전체를 다시 그려서 반영
-      await showDetailView(state.currentActivityId, updatedActivity.date);
-    } else {
-      // 새 마커 추가 시: 지도에 즉시 마커만 추가
-      addLocationMarker({ ...newMarkerData, markerId }, handleMarkerClick);
-    }
-
-    // 메모 저장 후 활동 목록을 다시 로드하여 state를 최신으로 유지
-    await loadActivities();
+    // 저장이 완료되면, DB에서 최신 데이터를 가져와 상세 뷰를 다시 렌더링합니다.
+    await showDetailView(state.currentActivityId, updatedActivity.date);
 
     hideMemoModal();
   } catch (error) {
