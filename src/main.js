@@ -216,6 +216,12 @@ function handleStartTracking() {
  */
 async function handleStopTracking() {
   stopTracking();
+  // 경로 추적을 종료하고, 현재까지의 경로를 활동 객체에 즉시 저장합니다.
+  if (state.currentActivityId) {
+    const activity = await getActivity(state.currentActivityId);
+    activity.path_coordinates = getPathCoordinates();
+    await updateActivity(activity);
+  }
   await snapToRoad(); // 마지막으로 경로 보정
   alert('활동 기록을 종료합니다. 보정된 최종 경로를 확인하고 저장해주세요.');
 }
@@ -341,6 +347,10 @@ async function handleSaveMemo() {
       // 새 마커 추가
       activity.location_markers.push(newMarkerData);
     }
+
+    // 중요: 메모를 저장할 때, 현재까지 추적된 경로도 함께 저장하여 데이터 소실을 방지합니다.
+    const currentPath = getPathCoordinates();
+    activity.path_coordinates = currentPath;
 
     const activityDate = activity.date; // 날짜 정보를 미리 저장
     await updateActivity(activity);
