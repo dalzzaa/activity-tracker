@@ -289,10 +289,31 @@ export function addLocationMarker(markerData, onMarkerClick) {
     map.removeLayer(locationMarkers[existingMarkerIndex]);
   }
 
-  const { lat, lng, memo } = markerData;
-  const marker = L.marker([lat, lng], { markerId: markerData.markerId }).addTo(map);
+  const { lat, lng, memo, mediaKeys } = markerData;
 
-  // TODO: 사진 유무에 따라 아이콘/썸네일 분기 처리
+  // 메모 마커를 위한 커스텀 아이콘 정의
+  const greenIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+  });
+
+  const violetIcon = L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+  });
+
+  // 사진 유무에 따라 다른 아이콘을 사용
+  const customIcon = (mediaKeys && mediaKeys.length > 0) ? violetIcon : greenIcon;
+  const marker = L.marker([lat, lng], { icon: customIcon, markerId: markerData.markerId }).addTo(map);
+
   if (memo) {
     marker.bindPopup(`<b>메모:</b><br>${memo}`);
   } else {
