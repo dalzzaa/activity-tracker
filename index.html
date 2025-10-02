@@ -84,27 +84,6 @@
         <div class="detail-map-container">
             <div id="map"></div>
         </div>
-        
-        <!-- 메모 모달 (초기에는 숨김) -->
-        <div id="modal-backdrop" class="hidden"></div>
-        <div id="memo-modal" class="hidden">
-            <div id="memo-modal-content">
-                <h3>메모</h3>
-                <div id="memo-coords"></div>
-                <textarea id="memo-textarea" placeholder="메모 내용을 입력하세요..."></textarea>
-                <div id="photo-preview-container"></div>
-                <div class="photo-actions">
-                    <button id="take-photo-btn">사진 찍기</button>
-                    <button id="select-photo-btn">사진 선택</button>
-                    <input type="file" id="take-photo-input" class="hidden-file-input" accept="image/*" capture="environment">
-                    <input type="file" id="select-photo-input" class="hidden-file-input" accept="image/*" multiple>
-                </div>
-                <div class="memo-actions">
-                    <button id="memo-cancel-btn">취소</button>
-                    <button id="memo-save-btn">저장</button>
-                </div>
-            </div>
-        </div>
         <!-- 이미지 확대 모달 (초기에는 숨김) -->
         <div id="image-zoom-modal" class="hidden">
             <img id="zoomed-image" src="">
