@@ -332,3 +332,11 @@ export function addLocationMarker(markerData, onMarkerClick) {
   // 마커 관리 배열에 추가
   locationMarkers.push(marker);
 }
+
+/**
+ * 지도에 표시된 모든 위치 마커를 제거합니다.
+ */
+export function clearAllLocationMarkers() {
+  locationMarkers.forEach(marker => map.removeLayer(marker));
+  locationMarkers = [];
+}

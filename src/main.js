@@ -1,5 +1,5 @@
 import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia, getMedia, deleteMedia } from './db/indexedDB.js';
-import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker } from './map/mapHandler.js';
+import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker, clearAllLocationMarkers } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
 // DOM 요소 선택
@@ -102,6 +102,9 @@ async function showDetailView(activityId, date) {
 
   // 상세 뷰를 열 때마다 이전 경로를 초기화합니다.
   clearPath();
+  // 모든 기존 위치 마커를 지도와 관리 배열에서 제거합니다.
+  // 이렇게 해야 DB에서 삭제된 마커가 화면에 다시 나타나지 않습니다.
+  clearAllLocationMarkers();
 
   let activity = { title: '', date, path_coordinates: [], location_markers: [] };
   if (activityId) {
