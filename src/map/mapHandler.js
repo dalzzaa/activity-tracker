@@ -255,9 +255,6 @@ export function clearPath() {
     map.removeLayer(currentPosMarker);
     currentPosMarker = null;
   }
-  locationMarkers.forEach(marker => map.removeLayer(marker));
-  locationMarkers = [];
-
   rawPathCoordinates = [];
   console.log('Path cleared.');
 }
@@ -283,11 +280,17 @@ export function invalidateMapSize() {
 
 /**
  * 지도에 위치 마커(메모 등)를 추가합니다.
- * @param {object} markerData - 마커 데이터 (lat, lng, memo, markerId 등 포함)
+  * @param {object} markerData - 마커 데이터 (lat, lng, memo, markerId 등 포함)
  */
 export function addLocationMarker(markerData, onMarkerClick) {
+  // 이전에 추가된 동일한 ID의 마커가 있다면 제거하여 중복을 방지합니다.
+  const existingMarkerIndex = locationMarkers.findIndex(m => m.options.markerId === markerData.markerId);
+  if (existingMarkerIndex > -1) {
+    map.removeLayer(locationMarkers[existingMarkerIndex]);
+  }
+
   const { lat, lng, memo } = markerData;
-  const marker = L.marker([lat, lng]).addTo(map);
+  const marker = L.marker([lat, lng], { markerId: markerData.markerId }).addTo(map);
 
   // TODO: 사진 유무에 따라 아이콘/썸네일 분기 처리
   if (memo) {
