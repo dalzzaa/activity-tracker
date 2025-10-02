@@ -335,14 +335,18 @@ async function handleSaveMemo() {
       mediaKeys = await Promise.all(photoBlobs.map(blob => addMedia(blob)));
     }
 
-    // 기존 메모 수정 시, 새로 추가된 사진 외 기존 사진들의 키도 유지
+    // 기존 메모 수정 시, 삭제되지 않은 기존 사진들의 키를 유지하고,
+    // 삭제하기로 한 사진들은 DB에서 실제로 제거합니다.
     if (state.currentMemo.markerId) {
       const existingMarker = activity.location_markers.find(m => m.markerId === state.currentMemo.markerId);
       if (existingMarker && existingMarker.mediaKeys) { 
         // 기존 사진 키 중에서 삭제되지 않은 것들만 필터링하여 새 사진 키와 합칩니다.
         const remainingKeys = existingMarker.mediaKeys.filter(key => !deletedMediaKeys.includes(key));
         mediaKeys = [...mediaKeys, ...remainingKeys];
-        // DB에서 실제로 미디어 파일을 삭제합니다.
+      }
+      
+      // 삭제하기로 표시된 미디어 파일들을 DB에서 실제로 제거합니다.
+      if (deletedMediaKeys.length > 0) {
         await Promise.all(deletedMediaKeys.map(key => deleteMedia(key)));
       }
     }
