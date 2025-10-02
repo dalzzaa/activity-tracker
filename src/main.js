@@ -36,7 +36,7 @@ let state = {
   currentActivityId: null,
   currentActivityDate: null, // 상세 뷰에 표시 중인 활동의 날짜
   isMapInitialized: false, // 지도 초기화 여부 플래그 
-  currentMemo: { latlng: null, photoBlobs: [], markerId: null }, // 현재 편집 중인 메모 정보
+  currentMemo: { latlng: null, photoBlobs: [], markerId: null, deletedMediaKeys: new Set() }, // 현재 편집 중인 메모 정보
 };
 
 /**
@@ -302,7 +302,7 @@ function hideMemoModal() {
       URL.revokeObjectURL(img.src);
     }
   });
-  state.currentMemo = { latlng: null, photoBlobs: [], markerId: null };
+  state.currentMemo = { latlng: null, photoBlobs: [], markerId: null, deletedMediaKeys: new Set() };
   // 파일 입력값 초기화 (같은 파일 다시 선택 가능하도록)
   $takePhotoInput.value = '';
   $selectPhotoInput.value = '';
@@ -327,6 +327,7 @@ async function handleSaveMemo() {
 
   try {
     const activity = await getActivity(state.currentActivityId);
+    const deletedMediaKeys = Array.from(state.currentMemo.deletedMediaKeys);
     let mediaKeys = [];
 
     if (photoBlobs.length > 0) {
@@ -338,8 +339,11 @@ async function handleSaveMemo() {
     if (state.currentMemo.markerId) {
       const existingMarker = activity.location_markers.find(m => m.markerId === state.currentMemo.markerId);
       if (existingMarker && existingMarker.mediaKeys) { 
-        // 새 사진 키와 기존 사진 키를 합침 (중복 제거는 필요 시 추가)
-        mediaKeys = [...mediaKeys, ...existingMarker.mediaKeys];
+        // 기존 사진 키 중에서 삭제되지 않은 것들만 필터링하여 새 사진 키와 합칩니다.
+        const remainingKeys = existingMarker.mediaKeys.filter(key => !deletedMediaKeys.includes(key));
+        mediaKeys = [...mediaKeys, ...remainingKeys];
+        // DB에서 실제로 미디어 파일을 삭제합니다.
+        await Promise.all(deletedMediaKeys.map(key => deleteMedia(key)));
       }
     }
 
@@ -470,8 +474,9 @@ async function handlePreviewClick(e) {
     if (type === 'local') {
       state.currentMemo.photoBlobs[parseInt(identifier, 10)] = null; // 배열에서 null로 표시
     } else if (type === 'db') {
-      // DB에서 불러온 사진 삭제 로직 (기존 mediaKeys에서 해당 키 제거)
-      // TODO: DB에서 직접 media를 삭제하는 로직도 추가 가능
+      // 삭제할 DB 사진의 키를 임시로 Set에 저장합니다.
+      // 실제 삭제는 '저장' 버튼을 누를 때 처리됩니다.
+      state.currentMemo.deletedMediaKeys.add(parseInt(identifier, 10));
     }
     target.parentElement.remove(); // DOM에서 제거
   } else if (target.classList.contains('photo-preview')) {
