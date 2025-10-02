@@ -46,7 +46,7 @@
         .photo-actions button { flex-grow: 1; }
         #photo-preview-container { margin-top: 10px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; }
         .preview-image-wrapper { position: relative; }
-        .photo-preview { height: 80px; width: 80px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+        #memo-modal .photo-preview { height: 80px; width: 80px; object-fit: cover; border-radius: 4px; cursor: pointer; }
         .delete-photo-btn { position: absolute; top: -5px; right: -5px; background: black; color: white; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; cursor: pointer; font-weight: bold; border: 1px solid white; }
         /* 숨겨진 file input */
         .hidden-file-input { display: none; }
@@ -84,6 +84,10 @@
         <div class="detail-map-container">
             <div id="map"></div>
         </div>
+        <!--
+            이 이미지 확대 모달은 사진 미리보기를 클릭했을 때 큰 이미지를 보여주는 역할만 합니다.
+            내부에 photo-preview-container가 있을 필요가 없으므로 제거했습니다.
+        -->
         <!-- 이미지 확대 모달 (초기에는 숨김) -->
         <div id="image-zoom-modal" class="hidden">
             <img id="zoomed-image" src="">
