@@ -287,6 +287,8 @@ export function addLocationMarker(markerData, onMarkerClick) {
   const existingMarkerIndex = locationMarkers.findIndex(m => m.options.markerId === markerData.markerId);
   if (existingMarkerIndex > -1) {
     map.removeLayer(locationMarkers[existingMarkerIndex]);
+    // 지도에서뿐만 아니라 관리 배열에서도 마커를 제거합니다.
+    locationMarkers.splice(existingMarkerIndex, 1);
   }
 
   const { lat, lng, memo, mediaKeys } = markerData;
