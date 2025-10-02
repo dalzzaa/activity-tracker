@@ -45,6 +45,7 @@ function rerender() {
   // 뷰를 전환할 때 모달 관련 요소들이 항상 숨겨지도록 보장합니다.
   $memoModal.classList.add('hidden');
   $modalBackdrop.classList.add('hidden');
+  $imageZoomModal.classList.add('hidden'); // 이미지 확대 모달도 항상 숨깁니다.
 
   // 뷰 전환
   if (state.currentView === 'calendar') {
