@@ -1,4 +1,4 @@
-import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia, getMedia } from './db/indexedDB.js';
+import { initDB, getAllActivities, addActivity, deleteActivity, getActivity, updateActivity, addMedia, getMedia, deleteMedia } from './db/indexedDB.js';
 import { initMap, setInitialView, invalidateMapSize, startTracking, stopTracking, drawPath, getPathCoordinates, clearPath, snapToRoad, addLocationMarker } from './map/mapHandler.js';
 import { renderCalendar } from './ui/calendar.js';
 
@@ -19,6 +19,7 @@ const $memoCoords = document.getElementById('memo-coords');
 const $memoTextarea = document.getElementById('memo-textarea');
 const $memoSaveBtn = document.getElementById('memo-save-btn');
 const $memoCancelBtn = document.getElementById('memo-cancel-btn');
+const $memoDeleteBtn = document.getElementById('memo-delete-btn');
 const $takePhotoBtn = document.getElementById('take-photo-btn');
 const $selectPhotoBtn = document.getElementById('select-photo-btn');
 const $takePhotoInput = document.getElementById('take-photo-input');
@@ -259,6 +260,12 @@ async function showMemoModal(latlng, memoData = null) {
   state.currentMemo.photoBlobs = []; // 모달 열 때마다 사진 블랍 초기화
   state.currentMemo.markerId = memoData ? memoData.markerId : null;
 
+  // 기존 메모를 수정할 때만 '메모 삭제' 버튼을 보여줍니다.
+  if (memoData) {
+    $memoDeleteBtn.classList.remove('hidden');
+  } else {
+    $memoDeleteBtn.classList.add('hidden');
+  }
   $memoCoords.textContent = `위치: ${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
   $memoTextarea.value = memoData ? memoData.memo : '';
   
@@ -364,6 +371,45 @@ async function handleSaveMemo() {
   }
 }
 
+/**
+ * 메모 삭제 버튼 클릭을 처리하는 핸들러
+ */
+async function handleDeleteMemo() {
+  // 새 메모 작성 중에는 삭제할 대상이 없으므로 아무것도 하지 않습니다.
+  if (!state.currentMemo.markerId) {
+    return;
+  }
+
+  if (!confirm('이 메모와 모든 사진을 영구적으로 삭제하시겠습니까?')) {
+    return;
+  }
+
+  try {
+    const activity = await getActivity(state.currentActivityId);
+    const markerIndex = activity.location_markers.findIndex(m => m.markerId === state.currentMemo.markerId);
+
+    if (markerIndex > -1) {
+      const markerToDelete = activity.location_markers[markerIndex];
+      const mediaKeysToDelete = markerToDelete.mediaKeys || [];
+
+      // 1. 활동 데이터에서 마커 정보 제거
+      activity.location_markers.splice(markerIndex, 1);
+      await updateActivity(activity);
+
+      // 2. DB에서 관련 미디어(사진) 데이터 모두 삭제
+      if (mediaKeysToDelete.length > 0) {
+        await Promise.all(mediaKeysToDelete.map(key => deleteMedia(key)));
+      }
+
+      // 3. UI 갱신
+      await showDetailView(state.currentActivityId, activity.date);
+      hideMemoModal();
+      alert('메모가 삭제되었습니다.');
+    }
+  } catch (error) {
+    alert('메모 삭제에 실패했습니다: ' + error);
+  }
+}
 /**
  * 파일 입력(사진) 변경을 처리하는 핸들러
  * @param {Event} e
@@ -500,6 +546,7 @@ $startTrackingBtn.addEventListener('click', handleStartTracking);
 $stopTrackingBtn.addEventListener('click', handleStopTracking);
 $memoSaveBtn.addEventListener('click', handleSaveMemo);
 $memoCancelBtn.addEventListener('click', hideMemoModal);
+$memoDeleteBtn.addEventListener('click', handleDeleteMemo);
 $takePhotoBtn.addEventListener('click', handleTakePhoto);
 $selectPhotoBtn.addEventListener('click', handleSelectPhoto);
 $takePhotoInput.addEventListener('change', handlePhotoSelected);
